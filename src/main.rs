@@ -1,65 +1,31 @@
-use actix_web::{
-    get,
-    http::{uri::Parts, Uri},
-    web::Redirect,
-    App, HttpRequest, HttpServer, Responder,
-};
-use regex::Regex;
+pub mod dao;
+mod link_router;
+mod management;
 
-#[derive(Debug)]
-enum Platform {
-    Android,
-    Ios,
-    Web,
-    Unknown,
-}
+use link_router::create_link_router_service;
+use management::create_management_service;
+use poem::{listener::TcpListener, EndpointExt, Result, Route};
 
-fn get_platform_from_user_agent(user_agent: &str) -> Platform {
-    println!("User agent: {}", user_agent);
-    if Regex::new(r"Android").unwrap().is_match(user_agent) {
-        return Platform::Android;
-    }
-    if Regex::new(r"iPhone|iPad|iPod")
-        .unwrap()
-        .is_match(user_agent)
-    {
-        return Platform::Ios;
-    }
-    if Regex::new(r"Windows|Macintosh|Linux")
-        .unwrap()
-        .is_match(user_agent)
-    {
-        return Platform::Web;
-    }
-    return Platform::Unknown;
-}
+use tracing_subscriber;
 
-#[get("{tail:.*}")]
-async fn handler(req: HttpRequest) -> impl Responder {
-    let user_agent = req.headers().get("User-Agent").unwrap().to_str().unwrap();
-    let platform = get_platform_from_user_agent(user_agent);
-    let target_uri = match platform {
-        Platform::Android => {
-            // TODO We should actually redirect to the play store here
-            // as the app on android should natively handle these thinks
-            let mut parts = Parts::default();
-            parts.scheme = Some("nowu".parse().unwrap());
-            parts.authority = Some("app".parse().unwrap());
-            parts.path_and_query = req.uri().path_and_query().cloned();
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt().with_max_level(tracing::Level::DEBUG).init();
 
-            Uri::from_parts(parts).unwrap()
-        }
-        Platform::Web => Uri::from_static("https://google.com"),
-        _ => req.uri().clone(),
-    };
+    let pool =
+        sqlx::postgres::PgPool::connect("postgresql://postgres:postgres@127.0.0.1:9091/polylink")
+            .await?;
 
-    Redirect::to(target_uri.to_string())
-}
+    sqlx::migrate!("./migrations").run(&pool).await?;
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| App::new().service(handler))
-        .bind(("192.168.1.11", 8000))?
-        .run()
-        .await
+    let app = Route::new()
+        .nest("/api", create_management_service())
+        .nest("/", create_link_router_service())
+        .data(pool);
+
+    poem::Server::new(TcpListener::bind("0.0.0.0:9090"))
+        .run(app)
+        .await?;
+
+    Ok(())
 }

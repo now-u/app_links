@@ -7,5 +7,12 @@ edition = "2021"
 
 [dependencies]
 regex = "1.10.6"
-actix-web = "4"
-
+poem = "3"
+poem-openapi = { version = "5", features = ["swagger-ui", "uuid"]}
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+sqlx = { version = "0.8.0", features = ["runtime-tokio-rustls", "postgres", "uuid"] }
+rand = "0.8.5"
+uuid = { version = "1.10.0", features = ["v4"] }
+thiserror = "1.0.63"

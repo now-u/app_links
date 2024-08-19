@@ -1,13 +1,25 @@
+## Set up
+
+```bash
+docker-compose up -d
+cargo install sqlx-cli
+export DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:9091/polylink"
+sqlx database create
+cargo run
+```
+
+## Project info
+
 For now this is just playing around with dynamic links alternatives. If this seems viable we might use it for dynamic links going forward.
 
-## Short term
+### Short term
 
 1. Update app to handle app.now-u.com links with support for app links etc
 1. Update this thing to redirect to play store on android (i.e. if not handle by native app)
 1. Try and host this bad boi
 1. Test...
 
-## Long term
+### Long term
 
 The goal would be to add support for link previews
 
