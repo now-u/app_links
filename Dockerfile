@@ -1,12 +1,15 @@
-FROM rust:1.75 as build
+FROM rust:1-slim-buster AS build
+RUN cargo new --bin app
+WORKDIR /app
+COPY Cargo.toml /app/
+COPY Cargo.lock /app/
+RUN cargo build --release
+COPY src /app/src
+COPY migrations /app/migrations
+COPY templates /app/templates
+RUN touch src/main.rs
+RUN cargo build --release
 
-WORKDIR /usr/src/api-service
-COPY . .
-
-RUN cargo install --path .
-
-FROM gcr.io/distroless/cc-debian12
-
-COPY —from=build /usr/local/cargo/bin/polylink /usr/local/bin/polylink
-
-CMD [“polylink”]
+FROM debian:buster-slim
+COPY --from=build /app/target/release/app_links /app/app_links
+CMD "/app/app_links"
