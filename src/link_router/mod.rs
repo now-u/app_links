@@ -1,10 +1,13 @@
+use std::env;
+
 use poem::{
-    get, handler, http::StatusCode, web::{Data, Html, Path, Redirect}, FromRequest, IntoResponse, Request, RequestBody, Response, Result, Route
+    get, handler, http::StatusCode, web::{Data, Html, Path, Redirect}, EndpointExt, FromRequest, IntoResponse, Request, RequestBody, Response, Result, Route
 };
 use regex::Regex;
 use askama::Template;
+use url::Url;
 
-use crate::{crawler::is_crawler, dao, AppContext};
+use crate::{crawler::is_crawler, dao, AppContext, FallbackData};
 
 #[derive(Debug)]
 enum Platform {
@@ -72,6 +75,7 @@ async fn link_handler(
     Path(link_path): Path<String>,
     request_actor: RequestActor,
     Data(app_context): Data<&AppContext>,
+    Data(fallback_data): Data<&FallbackData>,
 ) -> impl IntoResponse {
     tracing::info!("Handling link link_path={link_path} request_actor={request_actor:?}");
 
@@ -90,9 +94,9 @@ async fn link_handler(
                 },
                 RequestActor::User(platform) => {
                     Redirect::temporary(match platform {
-                        Platform::Android => link.android_destination,
-                        Platform::Ios => link.ios_destination,
-                        Platform::Web | Platform::Unknown => link.web_destination,
+                        Platform::Android => &fallback_data.android_fallback,
+                        Platform::Ios => &fallback_data.ios_fallback,
+                        Platform::Web | Platform::Unknown => &fallback_data.web_fallback,
                     }).into_response()
                 }
             }

@@ -18,13 +18,10 @@ impl From<sqlx::Error> for Error {
 
 #[derive(Debug, Object, Clone, Eq, PartialEq)]
 pub struct LinkData {
+    pub link_path: String,
     pub title: String,
     pub description: String,
     pub image_url: String,
-
-    pub web_destination: String,
-    pub ios_destination: String,
-    pub android_destination: String,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Default, FromRow)]
@@ -35,47 +32,24 @@ pub struct Link {
     pub title: String,
     pub description: String,
     pub image_url: String,
-
-    pub web_destination: String,
-    pub ios_destination: String,
-    pub android_destination: String,
-}
-
-impl Link {
-    // TODO Should return URI
-    fn get_url(base_url: &str) -> String {
-        todo!()
-    }
-}
-
-fn generate_link_path() -> String {
-    const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let mut rng = rand::thread_rng();
-    let one_char = || CHARSET[rng.gen_range(0..CHARSET.len())] as char;
-    iter::repeat_with(one_char).take(24).collect()
 }
 
 const LINKS_SELECT_FIELDS: &str =
-    "id, link_path, title, description, image_url, android_destination, ios_destination, web_destination";
+    "id, link_path, title, description, image_url";
 
 pub async fn create_link(
     pool: &sqlx::Pool<sqlx::Postgres>,
     input: LinkData,
 ) -> Result<Link, Error> {
-    let link_path = generate_link_path();
-
-    tracing::info!("Creating new link link_path={link_path}");
+    tracing::info!("Creating new link link_path={}", input.link_path);
 
     let result: Result<Link, _> = sqlx::query_as(&format!(
-        "INSERT INTO links (link_path, title, description, image_url, android_destination, ios_destination, web_destination) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING {LINKS_SELECT_FIELDS}"
+        "INSERT INTO links (link_path, title, description, image_url) VALUES ($1, $2, $3, $4) RETURNING {LINKS_SELECT_FIELDS}"
     ))
-        .bind(link_path)
+        .bind(input.link_path)
         .bind(input.title)
         .bind(input.description)
         .bind(input.image_url)
-        .bind(input.web_destination)
-        .bind(input.ios_destination)
-        .bind(input.android_destination)
         .fetch_one(pool)
         .await;
 
@@ -93,14 +67,11 @@ pub async fn update_link(
     tracing::info!("Updating link link_id={link_id}");
 
     let result: Result<Option<Link>, _> = sqlx::query_as(&format!(
-        "UPDATE links SET title = $1, description = $2, image_url = $3, android_destination = $4, ios_destination = $5, web_destination = $6 WHERE id = $7 RETURNING {LINKS_SELECT_FIELDS}"
+        "UPDATE links SET title = $1, description = $2, image_url = $3 WHERE id = $7 RETURNING {LINKS_SELECT_FIELDS}"
     ))
         .bind(link_data.title)
         .bind(link_data.description)
         .bind(link_data.image_url)
-        .bind(link_data.web_destination)
-        .bind(link_data.ios_destination)
-        .bind(link_data.android_destination)
         .bind(link_id)
         .fetch_optional(pool)
         .await;

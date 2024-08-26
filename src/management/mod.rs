@@ -18,10 +18,6 @@ struct Link {
     title: String,
     description: String,
     image_url: String,
-
-    web_destination: String,
-    ios_destination: String,
-    android_destination: String,
 }
 
 impl dao::Link {
@@ -33,9 +29,6 @@ impl dao::Link {
             title: self.title,
             description: self.description,
             image_url: self.image_url,
-            android_destination: self.android_destination,
-            web_destination: self.web_destination,
-            ios_destination: self.ios_destination,
         }
     }
 
@@ -83,8 +76,12 @@ enum UpdateLinkResponse {
 )]
 struct ApiKeyAuth(());
 
-async fn api_key_checker(_: &Request, api_key: ApiKey) -> Option<()> {
-    if api_key.key == "123" {
+async fn api_key_checker(
+    request: &Request,
+    api_key: ApiKey,
+) -> Option<()> {
+    let app_context: &AppContext = request.data().unwrap();
+    if api_key.key == app_context.api_key {
         return Some(());
     }
     return None;
