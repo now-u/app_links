@@ -108,5 +108,6 @@ async fn link_handler(
 }
 
 pub fn create_link_router_service() -> Route {
-    Route::new().at("/:link_path", get(link_handler))
+    Route::new()
+        .at("/*path", get(link_handler))
 }

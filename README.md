@@ -31,3 +31,8 @@ The issue with that approach is we will get very long links. Potentially we shou
 
 
 Potentailly in the future we could auto generate shorted URL in django app for each resource (and update as updated). Probably the api should provide a deep link in the response regardless of whether its stored here?
+
+## TODO 
+
+For this to be a real deep links replacement, we would need to add in the "app route" and have the app fetch the link when they are opened to get the route into the app.
+We could also allow the user to provide the link_path directly (when creating a link) so the app can use this directly to navigate (this could also be used on the website potentially optionally?)
