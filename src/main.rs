@@ -12,7 +12,6 @@ use tracing::info;
 use url::Url;
 
 use sqlx::Postgres;
-use tracing_subscriber;
 
 #[derive(Clone)]
 struct AppContext {
@@ -29,8 +28,8 @@ struct FallbackData {
 }
 
 fn get_fallback_from_env(env_name: &str) -> Url {
-    let env_value = env::var(env_name).expect(&format!("{env_name} must be defined"));
-    Url::parse(&env_value).expect(&format!("{env_name} must be a valid url"))
+    let env_value = env::var(env_name).unwrap_or_else(|_| panic!("{env_name} must be defined"));
+    Url::parse(&env_value).unwrap_or_else(|_| panic!("{env_name} must be a valid url"))
 }
 
 #[tokio::main]
@@ -57,7 +56,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Route::new()
         .nest("/api", create_management_service(&base_url))
         .nest("/", create_link_router_service())
-        .data(AppContext { pool, base_url, api_key })
+        .data(AppContext {
+            pool,
+            base_url,
+            api_key,
+        })
         .data(FallbackData {
             web_fallback: get_fallback_from_env("WEB_FALLBACK_URL"),
             android_fallback: get_fallback_from_env("ANDROID_FALLBACK_URL"),

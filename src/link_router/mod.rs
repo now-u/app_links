@@ -1,11 +1,11 @@
-use std::env;
-
+use askama::Template;
 use poem::{
-    get, handler, http::StatusCode, web::{Data, Html, Path, Redirect}, EndpointExt, FromRequest, IntoResponse, Request, RequestBody, Response, Result, Route
+    get, handler,
+    http::StatusCode,
+    web::{Data, Html, Path, Redirect},
+    FromRequest, IntoResponse, Request, RequestBody, Response, Result, Route,
 };
 use regex::Regex;
-use askama::Template;
-use url::Url;
 
 use crate::{crawler::is_crawler, dao, AppContext, FallbackData};
 
@@ -20,7 +20,7 @@ enum Platform {
 #[derive(Debug)]
 enum RequestActor {
     Crawler,
-    User(Platform)
+    User(Platform),
 }
 
 #[derive(Template)]
@@ -50,7 +50,7 @@ fn get_platform_from_user_agent(user_agent: &str) -> Platform {
     {
         return Platform::Web;
     }
-    return Platform::Unknown;
+    Platform::Unknown
 }
 
 impl<'a> FromRequest<'a> for RequestActor {
@@ -60,13 +60,11 @@ impl<'a> FromRequest<'a> for RequestActor {
             .get("User-Agent")
             .and_then(|value| value.to_str().ok());
 
-        Ok(
-            match user_agent_header {
-                None => RequestActor::User(Platform::Unknown),
-                Some(header_value) if is_crawler(header_value) => RequestActor::Crawler,
-                Some(header_value) => RequestActor::User(get_platform_from_user_agent(header_value)),
-            }
-        )
+        Ok(match user_agent_header {
+            None => RequestActor::User(Platform::Unknown),
+            Some(header_value) if is_crawler(header_value) => RequestActor::Crawler,
+            Some(header_value) => RequestActor::User(get_platform_from_user_agent(header_value)),
+        })
     }
 }
 
@@ -80,38 +78,33 @@ async fn link_handler(
     tracing::info!("Handling link link_path={link_path} request_actor={request_actor:?}");
 
     match dao::get_link_by_link_path(&app_context.pool, &link_path).await {
-        Ok(Some(link)) => {
-            match request_actor {
-                RequestActor::Crawler => {
-                    let response = CrawlerResponseTemplate {
-                        og_title: link.title,
-                        og_description: link.description,
-                        og_url: link.link_path,
-                        og_image_url: link.image_url,
-                        og_type: "website".to_string(),
-                    };
-                    Html(response.render().unwrap()).into_response()
-                },
-                RequestActor::User(platform) => {
-                    Redirect::temporary(match platform {
-                        Platform::Android => &fallback_data.android_fallback,
-                        Platform::Ios => &fallback_data.ios_fallback,
-                        Platform::Web | Platform::Unknown => &fallback_data.web_fallback,
-                    }).into_response()
-                }
+        Ok(Some(link)) => match request_actor {
+            RequestActor::Crawler => {
+                let response = CrawlerResponseTemplate {
+                    og_title: link.title,
+                    og_description: link.description,
+                    og_url: link.link_path,
+                    og_image_url: link.image_url,
+                    og_type: "website".to_string(),
+                };
+                Html(response.render().unwrap()).into_response()
             }
-
-        }
+            RequestActor::User(platform) => Redirect::temporary(match platform {
+                Platform::Android => &fallback_data.android_fallback,
+                Platform::Ios => &fallback_data.ios_fallback,
+                Platform::Web | Platform::Unknown => &fallback_data.web_fallback,
+            })
+            .into_response(),
+        },
         Ok(None) => Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(format!("Link not found")),
+            .body("Link not found".to_string()),
         Err(_) => Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body(format!("Unknown error")),
+            .body("Unknown error".to_string()),
     }
 }
 
 pub fn create_link_router_service() -> Route {
-    Route::new()
-        .at("/*path", get(link_handler))
+    Route::new().at("/*path", get(link_handler))
 }

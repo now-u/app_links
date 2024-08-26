@@ -5,7 +5,10 @@ use poem_openapi::{
 };
 use url::Url;
 
-use crate::{dao::{self, update_link, LinkData}, AppContext};
+use crate::{
+    dao::{self, update_link, LinkData},
+    AppContext,
+};
 
 pub struct ManagementApi;
 
@@ -32,7 +35,7 @@ impl dao::Link {
         }
     }
 
-    fn to_json(self, base_url: &Url) -> Json<Link> {
+    fn into_json(self, base_url: &Url) -> Json<Link> {
         Json(self.serialize(base_url))
     }
 }
@@ -76,15 +79,12 @@ enum UpdateLinkResponse {
 )]
 struct ApiKeyAuth(());
 
-async fn api_key_checker(
-    request: &Request,
-    api_key: ApiKey,
-) -> Option<()> {
+async fn api_key_checker(request: &Request, api_key: ApiKey) -> Option<()> {
     let app_context: &AppContext = request.data().unwrap();
     if api_key.key == app_context.api_key {
         return Some(());
     }
-    return None;
+    None
 }
 
 impl From<dao::Error> for poem::Error {
@@ -103,7 +103,10 @@ impl ManagementApi {
         _auth: ApiKeyAuth,
     ) -> Result<ListLinksResponse> {
         let links = dao::list_links(&app_context.pool).await?;
-        let links: Vec<Link> = links.into_iter().map(|item| item.serialize(&app_context.base_url)).collect();
+        let links: Vec<Link> = links
+            .into_iter()
+            .map(|item| item.serialize(&app_context.base_url))
+            .collect();
         Ok(ListLinksResponse::Ok(Json(links)))
     }
 
@@ -116,7 +119,7 @@ impl ManagementApi {
         _auth: ApiKeyAuth,
     ) -> Result<GetLinkResponse> {
         Ok(match dao::get_link(&app_context.pool, &link_id).await? {
-            Some(link) => GetLinkResponse::Ok(link.to_json(&app_context.base_url)),
+            Some(link) => GetLinkResponse::Ok(link.into_json(&app_context.base_url)),
             None => GetLinkResponse::NotFound,
         })
     }
@@ -131,7 +134,9 @@ impl ManagementApi {
     ) -> Result<CreateLinkResponse> {
         let link = dao::create_link(&app_context.pool, input).await?;
 
-        Ok(CreateLinkResponse::Ok(link.to_json(&app_context.base_url)))
+        Ok(CreateLinkResponse::Ok(
+            link.into_json(&app_context.base_url),
+        ))
     }
 
     /// Update an existing polylink
@@ -143,22 +148,30 @@ impl ManagementApi {
         Data(app_context): Data<&AppContext>,
         _auth: ApiKeyAuth,
     ) -> Result<UpdateLinkResponse> {
-        Ok(match update_link(&app_context.pool, &link_id, input).await? {
-            Some(link) => UpdateLinkResponse::Ok(link.to_json(&app_context.base_url)),
-            None => UpdateLinkResponse::NotFound,
-        })
+        Ok(
+            match update_link(&app_context.pool, &link_id, input).await? {
+                Some(link) => UpdateLinkResponse::Ok(link.into_json(&app_context.base_url)),
+                None => UpdateLinkResponse::NotFound,
+            },
+        )
     }
 }
 
 pub fn create_management_service(base_url: &Url) -> Route {
     let api_service = OpenApiService::new(ManagementApi, "PolyLink Management API", "0.0.1")
-        .server(base_url.join("/api").expect("Cannot join base url with api").to_string());
+        .server(
+            base_url
+                .join("/api")
+                .expect("Cannot join base url with api")
+                .to_string(),
+        );
 
     let ui = api_service.swagger_ui();
     let json_spec_endpoint = api_service.spec_endpoint();
     let yaml_spec_endpoint = api_service.spec_endpoint_yaml();
 
-    Route::new().nest("/", api_service)
+    Route::new()
+        .nest("/", api_service)
         .nest("/docs", ui)
         .nest("/docs/spec.json", json_spec_endpoint)
         .nest("/docs/spec.yaml", yaml_spec_endpoint)

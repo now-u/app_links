@@ -1,7 +1,4 @@
-use std::iter;
-
 use poem_openapi::Object;
-use rand::Rng;
 use sqlx::prelude::FromRow;
 
 #[derive(thiserror::Error, Debug)]
@@ -34,8 +31,7 @@ pub struct Link {
     pub image_url: String,
 }
 
-const LINKS_SELECT_FIELDS: &str =
-    "id, link_path, title, description, image_url";
+const LINKS_SELECT_FIELDS: &str = "id, link_path, title, description, image_url";
 
 pub async fn create_link(
     pool: &sqlx::Pool<sqlx::Postgres>,
@@ -101,10 +97,12 @@ pub async fn get_link(
 ) -> Result<Option<Link>, Error> {
     tracing::info!("Getting link by id link_id={link_id}");
 
-    let result = sqlx::query_as::<_, Link>(&format!("SELECT {LINKS_SELECT_FIELDS} FROM links WHERE id = $1"))
-        .bind(link_id)
-        .fetch_optional(pool)
-        .await;
+    let result = sqlx::query_as::<_, Link>(&format!(
+        "SELECT {LINKS_SELECT_FIELDS} FROM links WHERE id = $1"
+    ))
+    .bind(link_id)
+    .fetch_optional(pool)
+    .await;
 
     result.map_err(|err| {
         tracing::error!("Error whilst fetching link link_id={link_id} err={err}");
@@ -118,10 +116,12 @@ pub async fn get_link_by_link_path(
 ) -> Result<Option<Link>, Error> {
     tracing::info!("Getting link by url path link_path={link_path}");
 
-    let result = sqlx::query_as::<_, Link>(&format!("SELECT {LINKS_SELECT_FIELDS} FROM links WHERE link_path = $1"))
-        .bind(link_path)
-        .fetch_optional(pool)
-        .await;
+    let result = sqlx::query_as::<_, Link>(&format!(
+        "SELECT {LINKS_SELECT_FIELDS} FROM links WHERE link_path = $1"
+    ))
+    .bind(link_path)
+    .fetch_optional(pool)
+    .await;
 
     result.map_err(|err| {
         tracing::error!("Error whilst creating link err={err}");
