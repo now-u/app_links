@@ -1,7 +1,10 @@
-use poem::{get, handler, web::{Data, Path}, FromRequest, Request, RequestBody, Result, Route};
+use poem::{
+    get, handler, http::StatusCode, web::{Data, Html, Path, Redirect}, FromRequest, IntoResponse, Request, RequestBody, Response, Result, Route
+};
 use regex::Regex;
+use askama::Template;
 
-use crate::dao;
+use crate::{crawler::is_crawler, dao, AppContext};
 
 #[derive(Debug)]
 enum Platform {
@@ -9,6 +12,22 @@ enum Platform {
     Ios,
     Web,
     Unknown,
+}
+
+#[derive(Debug)]
+enum RequestActor {
+    Crawler,
+    User(Platform)
+}
+
+#[derive(Template)]
+#[template(path = "crawler_response.html")]
+struct CrawlerResponseTemplate {
+    og_title: String,
+    og_description: String,
+    og_type: String,
+    og_url: String,
+    og_image_url: String,
 }
 
 fn get_platform_from_user_agent(user_agent: &str) -> Platform {
@@ -31,32 +50,60 @@ fn get_platform_from_user_agent(user_agent: &str) -> Platform {
     return Platform::Unknown;
 }
 
-impl<'a> FromRequest<'a> for Platform {
+impl<'a> FromRequest<'a> for RequestActor {
     async fn from_request(req: &'a Request, _body: &mut RequestBody) -> Result<Self> {
         let user_agent_header = req
             .headers()
             .get("User-Agent")
             .and_then(|value| value.to_str().ok());
 
-        Ok(match user_agent_header {
-            None => Platform::Unknown,
-            Some(header_value) => get_platform_from_user_agent(header_value),
-        })
+        Ok(
+            match user_agent_header {
+                None => RequestActor::User(Platform::Unknown),
+                Some(header_value) if is_crawler(header_value) => RequestActor::Crawler,
+                Some(header_value) => RequestActor::User(get_platform_from_user_agent(header_value)),
+            }
+        )
     }
 }
 
 #[handler]
 async fn link_handler(
     Path(link_path): Path<String>,
-    platform: Platform,
-    Data(pool): Data<&sqlx::Pool<sqlx::Postgres>>,
-) -> String {
-    tracing::info!("Handling link link_path={link_path}");
+    request_actor: RequestActor,
+    Data(app_context): Data<&AppContext>,
+) -> impl IntoResponse {
+    tracing::info!("Handling link link_path={link_path} request_actor={request_actor:?}");
 
-    match dao::get_link_by_url_path(pool, &link_path).await {
-        Ok(Some(link)) => format!("hello {link_path} on {:?}. Link title={}", platform, link.title),
-        Ok(None) => format!("Link not found"),
-        Err(_) => format!("Unknown error"),
+    match dao::get_link_by_link_path(&app_context.pool, &link_path).await {
+        Ok(Some(link)) => {
+            match request_actor {
+                RequestActor::Crawler => {
+                    let response = CrawlerResponseTemplate {
+                        og_title: link.title,
+                        og_description: link.description,
+                        og_url: link.link_path,
+                        og_image_url: link.image_url,
+                        og_type: "website".to_string(),
+                    };
+                    Html(response.render().unwrap()).into_response()
+                },
+                RequestActor::User(platform) => {
+                    Redirect::temporary(match platform {
+                        Platform::Android => link.android_destination,
+                        Platform::Ios => link.ios_destination,
+                        Platform::Web | Platform::Unknown => link.web_destination,
+                    }).into_response()
+                }
+            }
+
+        }
+        Ok(None) => Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(format!("Link not found")),
+        Err(_) => Response::builder()
+            .status(StatusCode::INTERNAL_SERVER_ERROR)
+            .body(format!("Unknown error")),
     }
 }
 

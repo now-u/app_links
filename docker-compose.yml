@@ -9,6 +9,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data:Z
     environment:
+      POSTGRES_DB: polylink
       POSTGRES_PASSWORD: postgres
     ports:
       - 9091:5432
