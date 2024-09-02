@@ -7,7 +7,7 @@ use std::env;
 
 use link_router::create_link_router_service;
 use management::create_management_service;
-use poem::{listener::TcpListener, EndpointExt, Result, Route};
+use poem::{endpoint::make_sync, get, listener::TcpListener, EndpointExt, Response, Result, Route};
 use tracing::info;
 use url::Url;
 
@@ -54,6 +54,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Creating app");
     let app = Route::new()
+        .at(
+            "/.well-known/assetlinks.json",
+            get(make_sync(move |_| {
+                Response::builder()
+                    .content_type("application/json")
+                    .body(include_str!("assetlinks.json"))
+            })),
+        )
         .nest("/api", create_management_service(&base_url))
         .nest("/", create_link_router_service())
         .data(AppContext {
