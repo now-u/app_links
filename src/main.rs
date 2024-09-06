@@ -68,8 +68,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Response::builder()
                     .content_type("application/json")
                     .body(include_str!("apple-app-site-association.json"))
-                })),
-            )
+            })),
+        )
         .nest("/api", create_management_service(&base_url))
         .nest("/", create_link_router_service())
         .data(AppContext {
