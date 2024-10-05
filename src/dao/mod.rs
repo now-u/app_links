@@ -104,6 +104,10 @@ pub async fn get_link(
     .fetch_optional(pool)
     .await;
 
+    if matches!(result, Ok(None)) {
+        tracing::info!("No link found by id link_id={link_id}");
+    }
+
     result.map_err(|err| {
         tracing::error!("Error whilst fetching link link_id={link_id} err={err}");
         Error::UnknownError(Box::new(err))
@@ -122,6 +126,10 @@ pub async fn get_link_by_link_path(
     .bind(link_path)
     .fetch_optional(pool)
     .await;
+
+    if matches!(result, Ok(None)) {
+        tracing::info!("No link found by url path link_path={link_path}");
+    }
 
     result.map_err(|err| {
         tracing::error!("Error whilst creating link err={err}");

@@ -77,31 +77,33 @@ async fn link_handler(
 ) -> impl IntoResponse {
     tracing::info!("Handling link link_path={link_path} request_actor={request_actor:?}");
 
-    match dao::get_link_by_link_path(&app_context.pool, &link_path).await {
-        Ok(Some(link)) => match request_actor {
-            RequestActor::Crawler => {
-                let response = CrawlerResponseTemplate {
-                    og_title: link.title,
-                    og_description: link.description,
-                    og_url: link.link_path,
-                    og_image_url: link.image_url,
-                    og_type: "website".to_string(),
-                };
-                Html(response.render().unwrap()).into_response()
+    match request_actor {
+        RequestActor::Crawler => {
+            match dao::get_link_by_link_path(&app_context.pool, &link_path).await {
+                Ok(Some(link)) => {
+                    let response = CrawlerResponseTemplate {
+                        og_title: link.title,
+                        og_description: link.description,
+                        og_url: link.link_path,
+                        og_image_url: link.image_url,
+                        og_type: "website".to_string(),
+                    };
+                    Html(response.render().unwrap()).into_response()
+                }
+                Ok(None) => Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .body("Link not found".to_string()),
+                Err(_) => Response::builder()
+                    .status(StatusCode::INTERNAL_SERVER_ERROR)
+                    .body("Unknown error".to_string()),
             }
-            RequestActor::User(platform) => Redirect::temporary(match platform {
-                Platform::Android => &fallback_data.android_fallback,
-                Platform::Ios => &fallback_data.ios_fallback,
-                Platform::Web | Platform::Unknown => &fallback_data.web_fallback,
-            })
-            .into_response(),
-        },
-        Ok(None) => Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body("Link not found".to_string()),
-        Err(_) => Response::builder()
-            .status(StatusCode::INTERNAL_SERVER_ERROR)
-            .body("Unknown error".to_string()),
+        }
+        RequestActor::User(platform) => Redirect::temporary(match platform {
+            Platform::Android => &fallback_data.android_fallback,
+            Platform::Ios => &fallback_data.ios_fallback,
+            Platform::Web | Platform::Unknown => &fallback_data.web_fallback,
+        })
+        .into_response(),
     }
 }
 

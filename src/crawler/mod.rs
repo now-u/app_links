@@ -31,3 +31,13 @@ pub fn is_crawler(user_agent: &str) -> bool {
         .iter()
         .any(|crawler| crawler.pattern.is_match(user_agent))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_crawler() {
+        assert_eq!(is_crawler("abc"), false);
+    }
+}
